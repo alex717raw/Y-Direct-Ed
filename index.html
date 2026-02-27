@@ -1,0 +1,988 @@
+<!DOCTYPE html>
+<html lang="ru">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Direct Editor</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --primary: #6366f1;
+            --primary-hover: #4f46e5;
+            --bg: #0f172a;
+            --card-bg: rgba(30, 41, 59, 0.7);
+            --text: #f8fafc;
+            --text-muted: #94a3b8;
+            --border: rgba(255, 255, 255, 0.1);
+            --header-bg: rgba(15, 23, 42, 0.8);
+            --glass-border: rgba(255, 255, 255, 0.05);
+            --success: #10b981;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: var(--bg);
+            background-image:
+                radial-gradient(circle at 0% 0%, rgba(99, 102, 241, 0.15) 0%, transparent 50%),
+                radial-gradient(circle at 100% 100%, rgba(139, 92, 246, 0.15) 0%, transparent 50%);
+            color: var(--text);
+            min-height: 100vh;
+            padding: 2rem;
+            line-height: 1.5;
+            overflow-x: hidden;
+        }
+
+        .container {
+            max-width: 100%;
+            margin: 0;
+            padding: 0 1rem;
+        }
+
+        header {
+            margin-bottom: 2rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-end;
+            gap: 1rem;
+            flex-wrap: wrap;
+        }
+
+        h1 {
+            font-size: 2rem;
+            font-weight: 800;
+            background: linear-gradient(to right, #818cf8, #c084fc, #f472b6);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            margin-bottom: 0.5rem;
+            letter-spacing: -0.025em;
+        }
+
+        .subtitle {
+            color: var(--text-muted);
+            font-size: 0.95rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: var(--text-muted);
+        }
+
+        .status-dot.active {
+            background: var(--success);
+            box-shadow: 0 0 10px var(--success);
+        }
+
+        .controls {
+            display: flex;
+            gap: 1rem;
+            align-items: center;
+        }
+
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.75rem 1.25rem;
+            border-radius: 0.75rem;
+            font-size: 0.875rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+            border: 1px solid var(--border);
+            text-decoration: none;
+            color: var(--text);
+            background: rgba(255, 255, 255, 0.05);
+        }
+
+        .btn:hover {
+            background: rgba(255, 255, 255, 0.1);
+            transform: translateY(-1px);
+        }
+
+        .btn-primary {
+            background: var(--primary);
+            border-color: var(--primary);
+        }
+
+        .btn-primary:hover {
+            background: var(--primary-hover);
+            box-shadow: 0 4px 12px rgba(99, 102, 241, 0.3);
+        }
+
+        .btn-success {
+            background: var(--success);
+            border-color: var(--success);
+        }
+
+        .btn-success:hover {
+            background: #059669;
+            box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);
+        }
+
+        .search-box input {
+            width: 100%;
+            padding: 0.875rem 1rem 0.875rem 3rem;
+            background: var(--card-bg);
+            border: 1px solid var(--border);
+            border-radius: 1rem;
+            color: var(--text);
+            outline: none;
+            transition: all 0.2s;
+            backdrop-filter: blur(10px);
+        }
+
+        .search-box input:focus {
+            border-color: var(--primary);
+            box-shadow: 0 0 0 4px rgba(99, 102, 241, 0.1);
+            background: rgba(30, 41, 59, 0.9);
+        }
+
+        .search-box svg {
+            position: absolute;
+            left: 1rem;
+            top: 50%;
+            transform: translateY(-50%);
+            color: var(--text-muted);
+            width: 1.25rem;
+            height: 1.25rem;
+        }
+
+        .table-container {
+            background: var(--card-bg);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border: 1px solid var(--glass-border);
+            border-radius: 1.5rem;
+            overflow: hidden;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+            margin-top: 1rem;
+            animation: slideUp 0.6s ease-out;
+        }
+
+        .scroll-area {
+            overflow: auto;
+            max-height: calc(100vh - 250px);
+        }
+
+        table {
+            width: 100%;
+            border-collapse: separate;
+            border-spacing: 0;
+            text-align: left;
+        }
+
+        thead {
+            position: sticky;
+            top: 0;
+            z-index: 20;
+            background: var(--header-bg);
+            backdrop-filter: blur(10px);
+        }
+
+        th {
+            padding: 1.25rem 1.5rem;
+            font-size: 0.75rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            color: var(--text);
+            border-bottom: 1px solid var(--border);
+            white-space: nowrap;
+        }
+
+        td {
+            padding: 1rem 1.5rem;
+            font-size: 0.9375rem;
+            color: var(--text-muted);
+            border-bottom: 1px solid var(--border);
+            transition: background 0.2s;
+            min-width: 100px;
+        }
+
+        .col-used,
+        .col-diff {
+            min-width: 45px !important;
+            padding: 1rem 0.25rem !important;
+            background: rgba(0, 0, 0, 0.05);
+        }
+
+        .col-used {
+            text-align: right;
+            border-left: 1px solid var(--border);
+        }
+
+        .col-diff {
+            text-align: left;
+            border-right: 1px solid var(--border);
+        }
+
+        .col-used .cell-content,
+        .col-diff .cell-content {
+            padding: 0.5rem 0;
+            opacity: 0.8;
+            font-size: 0.85rem;
+            font-family: monospace;
+        }
+
+        th.col-used,
+        th.col-diff {
+            padding: 1.25rem 0.25rem;
+            width: 45px;
+            color: var(--text-muted);
+        }
+
+        th:first-child,
+        td:first-child {
+            position: sticky;
+            left: 0;
+            z-index: 10;
+            background: #1e293b;
+            /* Solid background for sticky col */
+            box-shadow: 2px 0 10px rgba(0, 0, 0, 0.5);
+        }
+
+        th:first-child {
+            z-index: 30;
+            background: var(--header-bg);
+        }
+
+        .badge {
+            background: rgba(99, 102, 241, 0.15);
+            color: #a5b4fc;
+            padding: 4px 8px;
+            border-radius: 6px;
+            font-weight: 600;
+            font-size: 0.8rem;
+            border: 1px solid rgba(99, 102, 241, 0.3);
+            white-space: nowrap;
+        }
+
+        /* Section Borders for Headers */
+        #tableHead th {
+            border-top: 4px solid transparent;
+        }
+
+        #tableHead th.section-main {
+            border-top-color: #6366f1;
+        }
+
+        #tableHead th.section-ql {
+            border-top-color: #a855f7;
+        }
+
+        #tableHead th.section-ext {
+            border-top-color: #ec4899;
+        }
+
+        .btn-icon {
+            padding: 0.5rem;
+            border-radius: 0.5rem;
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid var(--border);
+            color: var(--text-muted);
+            cursor: pointer;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .btn-icon:hover {
+            background: var(--primary);
+            color: white;
+            border-color: var(--primary);
+            transform: scale(1.1);
+        }
+
+        th {
+            cursor: pointer;
+            user-select: none;
+            position: relative;
+            transition: background 0.2s;
+        }
+
+        th:hover {
+            background: rgba(255, 255, 255, 0.05) !important;
+        }
+
+        th::after {
+            content: '↕';
+            position: absolute;
+            right: 0.5rem;
+            opacity: 0.2;
+            font-size: 0.8rem;
+        }
+
+        th.sort-asc::after {
+            content: '↑';
+            opacity: 1;
+            color: var(--primary);
+        }
+
+        th.sort-desc::after {
+            content: '↓';
+            opacity: 1;
+            color: var(--primary);
+        }
+
+        tr:hover td {
+            background: rgba(255, 255, 255, 0.02);
+            color: var(--text);
+        }
+
+        .cell-content {
+            outline: none;
+            padding: 0.5rem;
+            border-radius: 0.5rem;
+            transition: all 0.2s;
+            border: 1px solid transparent;
+        }
+
+        .cell-content:focus {
+            background: rgba(255, 255, 255, 0.05);
+            border-color: var(--primary);
+            color: var(--text);
+        }
+
+        .btn-icon.danger:hover {
+            background: #ef4444;
+            color: white;
+            border-color: #ef4444;
+        }
+
+        .copy-cell-btn {
+            position: absolute;
+            right: 6px;
+            top: 50%;
+            transform: translateY(-50%);
+            background: rgba(255, 255, 255, 0.05);
+            backdrop-filter: blur(4px);
+            border: 1px solid var(--border);
+            color: var(--text-muted);
+            border-radius: 6px;
+            padding: 6px;
+            cursor: pointer;
+            opacity: 0;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 10;
+        }
+
+        td:hover .copy-cell-btn {
+            opacity: 1;
+        }
+
+        .copy-cell-btn:hover {
+            background: var(--primary);
+            color: white;
+            border-color: var(--primary);
+            transform: translateY(-50%) scale(1.1);
+        }
+
+        .copy-cell-btn.success {
+            background: var(--success);
+            border-color: var(--success);
+            color: white;
+        }
+
+        .drop-zone {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(99, 102, 241, 0.2);
+            backdrop-filter: blur(8px);
+            z-index: 100;
+            display: none;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            border: 4px dashed var(--primary);
+            pointer-events: none;
+        }
+
+        .drop-zone.active {
+            display: flex;
+        }
+
+        .drop-zone h2 {
+            font-size: 2rem;
+            margin-top: 1rem;
+        }
+
+        @keyframes slideUp {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            body {
+                padding: 1rem;
+            }
+
+            header {
+                flex-direction: column;
+                align-items: stretch;
+            }
+
+            .controls {
+                justify-content: space-between;
+            }
+        }
+
+        ::-webkit-scrollbar {
+            width: 10px;
+            height: 10px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: transparent;
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 10px;
+            border: 3px solid transparent;
+            background-clip: content-box;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: rgba(255, 255, 255, 0.2);
+            background-clip: content-box;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="drop-zone" id="dropZone">
+        <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M17 8l-5-5-5 5M12 3v12" />
+        </svg>
+        <h2>Отпустите файл для загрузки</h2>
+    </div>
+
+    <div class="container">
+        <header>
+            <div>
+                <h1>Y Direct Editor</h1>
+                <div class="subtitle">
+                    <div class="status-dot" id="statusDot"></div>
+                    <span id="fileInfo">Перетащите файл или нажмите "Загрузить"</span>
+                </div>
+            </div>
+            <div class="controls">
+                <a href="https://direct.yandex.ru/" target="_blank" class="btn" title="Открыть Яндекс Директ">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path>
+                        <polyline points="15 3 21 3 21 9"></polyline>
+                        <line x1="10" y1="14" x2="21" y2="3"></line>
+                    </svg>
+                    Яндекс Директ
+                </a>
+                <button class="btn" id="btnOpen">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3" />
+                    </svg>
+                    Загрузить
+                </button>
+                <button class="btn btn-primary" id="btnSync">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path
+                            d="M23 4v6h-6M1 20v-6h6M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15" />
+                    </svg>
+                    Живое обновление
+                </button>
+                <button class="btn btn-success" id="btnSave" style="display:none;">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path>
+                        <polyline points="17 21 17 13 7 13 7 21"></polyline>
+                        <polyline points="7 3 7 8 15 8"></polyline>
+                    </svg>
+                    Сохранить в файл
+                </button>
+                <button class="btn" id="btnExport">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"
+                            transform="rotate(180 12 12)" />
+                    </svg>
+                    Экспорт
+                </button>
+            </div>
+        </header>
+
+        <div class="search-box">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                    d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+            </svg>
+            <input type="text" id="searchInput" placeholder="Поиск по данным...">
+        </div>
+
+        <div class="table-container">
+            <div class="scroll-area">
+                <table id="csvTable">
+                    <thead id="tableHead"></thead>
+                    <tbody id="tableBody"></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.2/papaparse.min.js"></script>
+    <script>
+        let currentData = [];
+        let fileHandle = null;
+        let lastModified = 0;
+        let isInteracting = false;
+        let sortConfig = { column: null, direction: 'asc' };
+
+        const tableHead = document.getElementById('tableHead');
+        const tableBody = document.getElementById('tableBody');
+        const fileInfo = document.getElementById('fileInfo');
+        const statusDot = document.getElementById('statusDot');
+        const searchInput = document.getElementById('searchInput');
+
+        const editorConfig = [
+            { text: 1, used: 2, diff: 3, limit: 56, rule: 'total', section: 'section-main' },
+            { text: 4, used: 5, diff: 6, limit: 30, rule: 'total', section: 'section-main' },
+            { text: 7, used: 8, diff: 9, limit: 81, rule: 'total', section: 'section-main' },
+            { text: 10, used: 11, diff: 12, limit: 66, rule: 'total', section: 'section-ql' },
+            { text: 13, used: 14, diff: 15, limit: 60, rule: 'maxPart', section: 'section-ql' },
+            { text: 16, used: 17, diff: 18, limit: 66, rule: 'sumParts', section: 'section-ext' }
+        ];
+
+        function calculateCount(text, rule) {
+            if (!text) return 0;
+            const parts = text.split('||');
+            switch (rule) {
+                case 'maxPart':
+                    return Math.max(...parts.map(p => p.length));
+                case 'sumParts':
+                    return parts.join('').length;
+                default:
+                    return text.length;
+            }
+        }
+
+        // Initial Data Structure
+        const initialCSV = `Название группы,Заголовок 1, , ,Заголовок 2, , ,Описание, , ,Заголовки быстрых ссылок, , ,Описания быстрых ссылок, , ,Уточнения, , 
+70x90,Душевая кабина 70x90 + установка под ключ,35,-21,Монтаж 1 день,13,-17,Соберем и подключим. Гарантия 1 год. Оплата по факту. Пишите.,58,-23,Каталог||Прайс||Доставка||Оплата,30,-36,Модели||Цены||МСК||Нал,23,0,Гарантия||Оплата||Москва,21,-45`;
+
+        function parseAndRender(csv) {
+            Papa.parse(csv, {
+                header: false,
+                skipEmptyLines: true,
+                complete: (results) => {
+                    currentData = results.data;
+                    renderTable(currentData);
+                }
+            });
+        }
+
+        function renderTable(data) {
+            if (!data || data.length === 0) return;
+
+            const rowLength = data[0].length;
+            const activeConfig = editorConfig.filter(c => c.diff < rowLength);
+            const usedCols = activeConfig.map(c => c.used);
+            const diffCols = activeConfig.map(c => c.diff);
+            const textCols = activeConfig.map(c => c.text);
+
+            // Header
+            const headers = [...data[0], 'Действия'];
+            tableHead.innerHTML = `<tr>${headers.map((h, i) => {
+                let className = '';
+                if (usedCols.includes(i)) className += ' col-used';
+                if (diffCols.includes(i)) className += ' col-diff';
+
+                const conf = activeConfig.find(c => c.text === i || c.used === i || c.diff === i);
+                if (conf) className += ' ' + conf.section;
+
+                if (i < headers.length - 1) {
+                    if (sortConfig.column === i) {
+                        className += sortConfig.direction === 'asc' ? ' sort-asc' : ' sort-desc';
+                    }
+                    return `<th class="${className.trim()}" onclick="handleSort(${i})">${h || ''}</th>`;
+                }
+                return `<th class="${className.trim()}">${h || ''}</th>`;
+            }).join('')}</tr>`;
+
+            // Body
+            const rows = data.slice(1);
+            const term = searchInput.value.toLowerCase();
+
+            const rowsWithIndex = rows.map((row, i) => ({ data: row, originalIndex: i + 1 }));
+            const filteredRows = term
+                ? rowsWithIndex.filter(item => item.data.some(cell => String(cell).toLowerCase().includes(term)))
+                : rowsWithIndex;
+
+            renderRows(filteredRows, activeConfig);
+
+            fileInfo.textContent = `Загружено строк: ${rows.length}${term ? ` (отфильтровано: ${filteredRows.length})` : ''}`;
+        }
+
+        function renderRows(items, activeConfig) {
+            tableBody.innerHTML = '';
+
+            const usedCols = activeConfig.map(c => c.used);
+            const diffCols = activeConfig.map(c => c.diff);
+            const textCols = activeConfig.map(c => c.text);
+
+            items.forEach((item) => {
+                const row = item.data;
+                const dataIndex = item.originalIndex;
+                const tr = document.createElement('tr');
+
+                row.forEach((cell, cellIndex) => {
+                    const td = document.createElement('td');
+                    const div = document.createElement('div');
+
+                    if (cellIndex === 0) {
+                        div.className = 'badge';
+                        div.style.cursor = 'text';
+                        div.style.outline = 'none';
+                        div.contentEditable = true;
+                    } else {
+                        div.className = 'cell-content';
+                        const isCountCol = usedCols.includes(cellIndex) || diffCols.includes(cellIndex);
+                        div.contentEditable = !isCountCol;
+                        if (isCountCol) div.style.opacity = '0.6';
+
+                        // Set width for text columns
+                        if (textCols.includes(cellIndex)) {
+                            td.style.minWidth = '250px';
+                        }
+                    }
+
+                    div.textContent = cell || '';
+
+                    div.onfocus = () => { isInteracting = true; };
+                    div.onblur = () => {
+                        isInteracting = false;
+                        currentData[dataIndex][cellIndex] = div.textContent;
+                    };
+                    div.oninput = () => {
+                        const newText = div.textContent;
+                        currentData[dataIndex][cellIndex] = newText;
+
+                        const colConfig = activeConfig.find(c => c.text === cellIndex);
+                        if (colConfig) {
+                            updateCounters(tr, colConfig, dataIndex);
+                        }
+                    };
+
+                    if (usedCols.includes(cellIndex)) td.className = 'col-used';
+                    if (diffCols.includes(cellIndex)) td.className = 'col-diff';
+
+                    if (textCols.includes(cellIndex)) {
+                        td.style.position = 'relative';
+                        const copyBtn = document.createElement('button');
+                        copyBtn.className = 'copy-cell-btn';
+                        copyBtn.title = 'Копировать текст';
+                        copyBtn.innerHTML = `
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                                <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+                            </svg>
+                        `;
+                        copyBtn.onclick = (e) => {
+                            e.stopPropagation();
+                            copyToClipboard(div.textContent, copyBtn);
+                        };
+                        td.appendChild(copyBtn);
+
+                        const conf = activeConfig.find(c => c.text === cellIndex);
+                        if (conf) td.classList.add(conf.section);
+                    }
+
+                    td.appendChild(div);
+                    tr.appendChild(td);
+                });
+
+                // Action cell
+                const actionTd = document.createElement('td');
+                actionTd.style.display = 'flex';
+                actionTd.style.gap = '0.5rem';
+
+                const dupBtn = document.createElement('button');
+                dupBtn.className = 'btn-icon';
+                dupBtn.title = 'Копировать строку';
+                dupBtn.innerHTML = `
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                        <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+                    </svg>
+                `;
+                dupBtn.onclick = () => duplicateRow(dataIndex);
+
+                const delBtn = document.createElement('button');
+                delBtn.className = 'btn-icon danger';
+                delBtn.innerHTML = `
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <polyline points="3 6 5 6 21 6"></polyline>
+                        <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                    </svg>
+                `;
+                let confirmMode = false;
+                delBtn.onclick = (e) => {
+                    e.stopPropagation();
+                    if (!confirmMode) {
+                        confirmMode = true;
+                        delBtn.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"></polyline></svg>';
+                        delBtn.style.background = '#ef4444';
+                        setTimeout(() => {
+                            confirmMode = false;
+                            delBtn.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>';
+                            delBtn.style.background = '';
+                        }, 3000);
+                    } else {
+                        deleteRow(dataIndex);
+                    }
+                };
+
+                actionTd.appendChild(dupBtn);
+                actionTd.appendChild(delBtn);
+                tr.appendChild(actionTd);
+                tableBody.appendChild(tr);
+            });
+        }
+
+        function handleSort(columnIndex) {
+            if (sortConfig.column === columnIndex) {
+                sortConfig.direction = sortConfig.direction === 'asc' ? 'desc' : 'asc';
+            } else {
+                sortConfig.column = columnIndex;
+                sortConfig.direction = 'asc';
+            }
+
+            const header = currentData[0];
+            const rows = currentData.slice(1);
+
+            rows.sort((a, b) => {
+                let valA = a[columnIndex] || '';
+                let valB = b[columnIndex] || '';
+
+                // Try numeric sort
+                const numA = parseFloat(valA);
+                const numB = parseFloat(valB);
+                if (!isNaN(numA) && !isNaN(numB)) {
+                    return sortConfig.direction === 'asc' ? numA - numB : numB - numA;
+                }
+
+                // String sort
+                return sortConfig.direction === 'asc'
+                    ? valA.localeCompare(valB, 'ru')
+                    : valB.localeCompare(valA, 'ru');
+            });
+
+            currentData = [header, ...rows];
+            renderTable(currentData);
+        }
+
+        function duplicateRow(dataIndex) {
+            const originalRow = currentData[dataIndex];
+            // Create deep copy
+            const newRow = [...originalRow];
+
+            // Append (копия) to Group Name (index 0)
+            if (newRow[0]) {
+                newRow[0] = newRow[0] + ' (копия)';
+            } else {
+                newRow[0] = '(копия)';
+            }
+
+            // Insert after the original row
+            currentData.splice(dataIndex + 1, 0, newRow);
+
+            // Re-render
+            renderTable(currentData);
+        }
+
+        function deleteRow(dataIndex) {
+            currentData.splice(dataIndex, 1);
+            renderTable(currentData);
+        }
+
+        async function copyToClipboard(text, btn) {
+            try {
+                await navigator.clipboard.writeText(text);
+                const originalHTML = btn.innerHTML;
+                btn.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"></polyline></svg>`;
+                btn.classList.add('success');
+                setTimeout(() => {
+                    btn.innerHTML = originalHTML;
+                    btn.classList.remove('success');
+                }, 1000);
+            } catch (err) {
+                console.error('Failed to copy: ', err);
+            }
+        }
+
+        function updateCounters(rowElement, colConfig, dataIndex) {
+            const tds = rowElement.querySelectorAll('td');
+            const textCell = tds[colConfig.text].querySelector('.cell-content');
+            if (!textCell) return;
+
+            const text = textCell.textContent;
+            const count = calculateCount(text, colConfig.rule);
+            const diff = colConfig.limit - count;
+
+            const countDiv = tds[colConfig.used].querySelector('.cell-content');
+            const diffDiv = tds[colConfig.diff].querySelector('.cell-content');
+
+            if (countDiv) countDiv.textContent = count;
+            if (diffDiv) {
+                diffDiv.textContent = diff < 0 ? diff : (count === 0 ? `-${colConfig.limit}` : diff);
+
+                if (diff < 0) {
+                    diffDiv.style.color = '#ef4444';
+                    diffDiv.style.fontWeight = '700';
+                } else {
+                    diffDiv.style.color = 'var(--text-muted)';
+                    diffDiv.style.fontWeight = '400';
+                }
+            }
+
+            currentData[dataIndex][colConfig.used] = String(count);
+            currentData[dataIndex][colConfig.diff] = String(diff < 0 ? diff : (count === 0 ? `-${colConfig.limit}` : diff));
+        }
+
+        // Search
+        searchInput.addEventListener('input', () => {
+            renderTable(currentData);
+        });
+
+        // File Operations
+        async function openFile() {
+            try {
+                [fileHandle] = await window.showOpenFilePicker({
+                    types: [{ description: 'CSV Files', accept: { 'text/csv': ['.csv'] } }]
+                });
+                const file = await fileHandle.getFile();
+                const content = await file.text();
+                parseAndRender(content);
+
+                statusDot.classList.add('active');
+                fileInfo.textContent = `Синхронизация активна: ${file.name}`;
+                lastModified = file.lastModified;
+
+                // Show save button as we have a handle
+                document.getElementById('btnSave').style.display = 'inline-flex';
+            } catch (err) {
+                console.error(err);
+            }
+        }
+
+        async function saveFile() {
+            if (!fileHandle) {
+                alert('Сначала выберите файл через "Живое обновление"');
+                return;
+            }
+
+            try {
+                // Request write permission if not already granted
+                const status = await fileHandle.requestPermission({ mode: 'readwrite' });
+                if (status !== 'granted') return;
+
+                const writable = await fileHandle.createWritable();
+                const csv = Papa.unparse(currentData);
+                await writable.write(csv);
+                await writable.close();
+
+                const file = await fileHandle.getFile();
+                lastModified = file.lastModified;
+
+                fileInfo.textContent = `Изменения сохранены в ${file.name}`;
+                setTimeout(() => {
+                    fileInfo.textContent = `Синхронизация активна: ${file.name}`;
+                }, 3000);
+
+            } catch (err) {
+                console.error('Ошибка сохранения:', err);
+                alert('Не удалось сохранить файл.');
+            }
+        }
+
+        // Live Sync Polling
+        async function checkFileUpdate() {
+            if (!fileHandle || isInteracting) return;
+            try {
+                const file = await fileHandle.getFile();
+                if (file.lastModified > lastModified) {
+                    const content = await file.text();
+                    parseAndRender(content);
+                    lastModified = file.lastModified;
+                }
+            } catch (err) {
+                console.warn('Sync failed', err);
+            }
+        }
+
+        setInterval(checkFileUpdate, 1500);
+
+        // Export
+        function exportCSV() {
+            const csv = Papa.unparse(currentData);
+            const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+            const link = document.createElement('a');
+            link.href = URL.createObjectURL(blob);
+            link.download = 'updated_data.csv';
+            link.click();
+        }
+
+        // Events
+        document.getElementById('btnOpen').onclick = openFile;
+        document.getElementById('btnSync').onclick = openFile;
+        document.getElementById('btnSave').onclick = saveFile;
+        document.getElementById('btnExport').onclick = exportCSV;
+
+        // Drag & Drop
+        window.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            document.getElementById('dropZone').classList.add('active');
+        });
+        window.addEventListener('dragleave', () => {
+            document.getElementById('dropZone').classList.remove('active');
+        });
+        window.addEventListener('drop', async (e) => {
+            e.preventDefault();
+            document.getElementById('dropZone').classList.remove('active');
+            const file = e.dataTransfer.files[0];
+            if (file) {
+                const content = await file.text();
+                parseAndRender(content);
+                fileInfo.textContent = `Файл: ${file.name}`;
+            }
+        });
+
+        // Load initial dummy data
+        parseAndRender(initialCSV);
+    </script>
+</body>
+
+</html>
