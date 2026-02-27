@@ -965,8 +965,25 @@
                 { index: 7, header: 'Описание', color: 'F3F4F6' },         // Grey
                 { index: 10, header: 'Заголовки быстрых ссылок', color: 'F0FDF4' }, // Green
                 { index: 13, header: 'Описания быстрых ссылок', color: 'F0FDF4' },  // Green
-                { index: 16, header: 'Уточнения', color: 'F0FDF4' }       // Green
+                { index: 16, header: 'Уточнения', color: 'FFFBEB' }       // Light Orange/Peach
             ];
+
+            // Calculate optimal column widths based on content
+            const colWidths = exportConfig.map(config => {
+                // Start with header length
+                let maxLen = config.header.length;
+
+                // Check all data rows for this column
+                currentData.slice(1).forEach(rowData => {
+                    const cellValue = String(rowData[config.index] || '');
+                    if (cellValue.length > maxLen) {
+                        maxLen = cellValue.length;
+                    }
+                });
+
+                // Apply constraints: min 15, max 100, add 5 for padding
+                return Math.min(100, Math.max(15, maxLen + 5));
+            });
 
             // Add Headers
             const headerRow = worksheet.addRow(exportConfig.map(c => c.header));
@@ -975,7 +992,7 @@
             // Apply colors and widths to columns
             exportConfig.forEach((config, i) => {
                 const col = worksheet.getColumn(i + 1);
-                col.width = [25, 40, 35, 60, 50, 50, 50][i];
+                col.width = colWidths[i];
 
                 // Color header cell
                 const cell = headerRow.getCell(i + 1);
@@ -987,8 +1004,26 @@
             });
 
             // Add Data
+            let lastGroupName = null;
             currentData.slice(1).forEach(rowData => {
+                const currentGroupName = rowData[0] || '';
+
+                // Automatic Group Detection & Separation
+                if (lastGroupName !== null && currentGroupName !== lastGroupName) {
+                    const separator = worksheet.addRow([]);
+                    separator.height = 10; // Thin separator
+                    for (let i = 1; i <= exportConfig.length; i++) {
+                        const cell = separator.getCell(i);
+                        cell.fill = {
+                            type: 'pattern',
+                            pattern: 'solid',
+                            fgColor: { argb: 'D1D5DB' } // Slightly darker grey for the line
+                        };
+                    }
+                }
+
                 const row = worksheet.addRow(exportConfig.map(c => rowData[c.index] || ''));
+                lastGroupName = currentGroupName;
 
                 // Apply background colors to data cells
                 exportConfig.forEach((config, i) => {
