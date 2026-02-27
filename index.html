@@ -208,9 +208,17 @@
             padding: 1rem 1.5rem;
             font-size: 0.9375rem;
             color: var(--text-muted);
-            border-bottom: 1px solid var(--border);
+            border-bottom: 8px solid rgba(0, 0, 0, 0.2);
+            /* Increased separation between rows */
             transition: background 0.2s;
             min-width: 100px;
+            vertical-align: top;
+            /* Align content to top for multi-line cells */
+        }
+
+        /* Group rows by visual border */
+        tr {
+            border-bottom: 1px solid var(--border);
         }
 
         .col-used,
@@ -350,6 +358,60 @@
             border-radius: 0.5rem;
             transition: all 0.2s;
             border: 1px solid transparent;
+            white-space: pre-wrap;
+            /* Support multi-line display */
+            word-break: break-all;
+            line-height: 1.4;
+        }
+
+        .part-item {
+            display: flex;
+            align-items: flex-start;
+            gap: 0.5rem;
+            margin-bottom: 0.5rem;
+            padding: 0.25rem;
+            border-radius: 0.5rem;
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            transition: all 0.2s;
+            position: relative;
+        }
+
+        .part-item:hover {
+            background: rgba(255, 255, 255, 0.05);
+            border-color: var(--primary);
+        }
+
+        .part-text {
+            flex: 1;
+            outline: none;
+            min-height: 1.5rem;
+            word-break: break-word;
+        }
+
+        .part-copy-btn {
+            opacity: 0;
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid var(--border);
+            color: var(--text-muted);
+            border-radius: 4px;
+            padding: 2px 4px;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .part-item:hover .part-copy-btn {
+            opacity: 1;
+        }
+
+        .part-copy-btn:hover {
+            background: var(--primary);
+            color: white;
+            border-color: var(--primary);
+            transform: scale(1.1);
         }
 
         .cell-content:focus {
@@ -574,7 +636,7 @@
             { text: 4, used: 5, diff: 6, limit: 30, rule: 'total', section: 'section-main' },
             { text: 7, used: 8, diff: 9, limit: 81, rule: 'total', section: 'section-main' },
             { text: 10, used: 11, diff: 12, limit: 66, rule: 'total', section: 'section-ql' },
-            { text: 13, used: 14, diff: 15, limit: 60, rule: 'maxPart', section: 'section-ql' },
+            { text: 13, used: 14, diff: 15, limit: 60, rule: 'total', section: 'section-ql' },
             { text: 16, used: 17, diff: 18, limit: 66, rule: 'sumParts', section: 'section-ext' }
         ];
 
@@ -662,67 +724,117 @@
 
                 row.forEach((cell, cellIndex) => {
                     const td = document.createElement('td');
-                    const div = document.createElement('div');
+                    const MULTI_PART_COLS = [10, 13, 16];
+                    const isMultiPart = MULTI_PART_COLS.includes(cellIndex);
 
-                    if (cellIndex === 0) {
-                        div.className = 'badge';
-                        div.style.cursor = 'text';
-                        div.style.outline = 'none';
-                        div.contentEditable = true;
-                    } else {
-                        div.className = 'cell-content';
-                        const isCountCol = usedCols.includes(cellIndex) || diffCols.includes(cellIndex);
-                        div.contentEditable = !isCountCol;
-                        if (isCountCol) div.style.opacity = '0.6';
+                    if (isMultiPart) {
+                        td.classList.add('multi-part-cell');
+                        const parts = (cell || '').toString().split('||');
+                        parts.forEach((part) => {
+                            const partDiv = document.createElement('div');
+                            partDiv.className = 'part-item';
 
-                        // Set width for text columns
-                        if (textCols.includes(cellIndex)) {
-                            td.style.minWidth = '250px';
-                        }
-                    }
+                            const textDiv = document.createElement('div');
+                            textDiv.className = 'part-text';
+                            textDiv.contentEditable = true;
+                            textDiv.textContent = part;
 
-                    div.textContent = cell || '';
+                            const partCopyBtn = document.createElement('button');
+                            partCopyBtn.className = 'part-copy-btn';
+                            partCopyBtn.title = 'Копировать этот элемент';
+                            partCopyBtn.innerHTML = `
+                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                                    <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+                                </svg>
+                            `;
+                            partCopyBtn.onclick = (e) => {
+                                e.stopPropagation();
+                                copyToClipboard(textDiv.textContent, partCopyBtn);
+                            };
 
-                    div.onfocus = () => { isInteracting = true; };
-                    div.onblur = () => {
-                        isInteracting = false;
-                        currentData[dataIndex][cellIndex] = div.textContent;
-                    };
-                    div.oninput = () => {
-                        const newText = div.textContent;
-                        currentData[dataIndex][cellIndex] = newText;
+                            textDiv.onfocus = () => { isInteracting = true; };
+                            textDiv.onblur = () => { isInteracting = false; };
+                            textDiv.oninput = () => {
+                                const allPartTexts = Array.from(td.querySelectorAll('.part-text')).map(el => el.textContent);
+                                const joinedText = allPartTexts.join('||');
+                                currentData[dataIndex][cellIndex] = joinedText;
 
-                        const colConfig = activeConfig.find(c => c.text === cellIndex);
-                        if (colConfig) {
-                            updateCounters(tr, colConfig, dataIndex);
-                        }
-                    };
+                                const colConfig = activeConfig.find(c => c.text === cellIndex);
+                                if (colConfig) {
+                                    updateCounters(tr, colConfig, dataIndex);
+                                }
+                            };
 
-                    if (usedCols.includes(cellIndex)) td.className = 'col-used';
-                    if (diffCols.includes(cellIndex)) td.className = 'col-diff';
-
-                    if (textCols.includes(cellIndex)) {
-                        td.style.position = 'relative';
-                        const copyBtn = document.createElement('button');
-                        copyBtn.className = 'copy-cell-btn';
-                        copyBtn.title = 'Копировать текст';
-                        copyBtn.innerHTML = `
-                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
-                                <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
-                            </svg>
-                        `;
-                        copyBtn.onclick = (e) => {
-                            e.stopPropagation();
-                            copyToClipboard(div.textContent, copyBtn);
-                        };
-                        td.appendChild(copyBtn);
+                            partDiv.appendChild(textDiv);
+                            partDiv.appendChild(partCopyBtn);
+                            td.appendChild(partDiv);
+                        });
 
                         const conf = activeConfig.find(c => c.text === cellIndex);
                         if (conf) td.classList.add(conf.section);
-                    }
 
-                    td.appendChild(div);
+                    } else {
+                        const div = document.createElement('div');
+                        if (cellIndex === 0) {
+                            div.className = 'badge';
+                            div.style.cursor = 'text';
+                            div.style.outline = 'none';
+                            div.contentEditable = true;
+                        } else {
+                            div.className = 'cell-content';
+                            const isCountCol = usedCols.includes(cellIndex) || diffCols.includes(cellIndex);
+                            div.contentEditable = !isCountCol;
+                            if (isCountCol) div.style.opacity = '0.6';
+
+                            if (textCols.includes(cellIndex)) {
+                                td.style.minWidth = '250px';
+                            }
+                        }
+
+                        div.textContent = (cell || '').toString().split('||').join('\n');
+
+                        div.onfocus = () => { isInteracting = true; };
+                        div.onblur = () => {
+                            isInteracting = false;
+                            currentData[dataIndex][cellIndex] = div.textContent.split('\n').join('||');
+                        };
+                        div.oninput = () => {
+                            const newText = div.textContent.split('\n').join('||');
+                            currentData[dataIndex][cellIndex] = newText;
+
+                            const colConfig = activeConfig.find(c => c.text === cellIndex);
+                            if (colConfig) {
+                                updateCounters(tr, colConfig, dataIndex);
+                            }
+                        };
+
+                        if (usedCols.includes(cellIndex)) td.className = 'col-used';
+                        if (diffCols.includes(cellIndex)) td.className = 'col-diff';
+
+                        if (textCols.includes(cellIndex)) {
+                            td.style.position = 'relative';
+                            const copyBtn = document.createElement('button');
+                            copyBtn.className = 'copy-cell-btn';
+                            copyBtn.title = 'Копировать весь текст';
+                            copyBtn.innerHTML = `
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                                    <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+                                </svg>
+                            `;
+                            copyBtn.onclick = (e) => {
+                                e.stopPropagation();
+                                copyToClipboard(div.textContent, copyBtn);
+                            };
+                            td.appendChild(copyBtn);
+
+                            const conf = activeConfig.find(c => c.text === cellIndex);
+                            if (conf) td.classList.add(conf.section);
+                        }
+
+                        td.appendChild(div);
+                    }
                     tr.appendChild(td);
                 });
 
@@ -847,10 +959,7 @@
 
         function updateCounters(rowElement, colConfig, dataIndex) {
             const tds = rowElement.querySelectorAll('td');
-            const textCell = tds[colConfig.text].querySelector('.cell-content');
-            if (!textCell) return;
-
-            const text = textCell.textContent;
+            const text = currentData[dataIndex][colConfig.text] || '';
             const count = calculateCount(text, colConfig.rule);
             const diff = colConfig.limit - count;
 
