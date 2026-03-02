@@ -558,14 +558,7 @@
                 </div>
             </div>
             <div class="controls">
-                <a href="https://direct.yandex.ru/" target="_blank" class="btn" title="Открыть Яндекс Директ">
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path>
-                        <polyline points="15 3 21 3 21 9"></polyline>
-                        <line x1="10" y1="14" x2="21" y2="3"></line>
-                    </svg>
-                    Яндекс Директ
-                </a>
+
                 <button class="btn" id="btnOpen">
                     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                         <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3" />
@@ -1195,6 +1188,8 @@
 
             worksheet.addRow(commanderHeaders);
 
+            let seenGroups = new Set();
+
             currentData.slice(1).forEach(rowData => {
                 const groupName = rowData[0] || '';
                 const title1 = rowData[1] || '';
@@ -1204,10 +1199,19 @@
                 const qlDesc = rowData[13] || '';
                 const callouts = rowData[16] || '';
 
+                let isAdditional = '+';
+                let phrase = '';
+
+                if (!seenGroups.has(groupName)) {
+                    isAdditional = '-';
+                    phrase = groupName;
+                    seenGroups.add(groupName);
+                }
+
                 const row = [
-                    '-',
+                    isAdditional,
                     groupName,
-                    groupName,
+                    phrase,
                     'Текстово-графическое',
                     title1,
                     title2,
