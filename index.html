@@ -179,7 +179,8 @@
         }
 
         table {
-            width: 100%;
+            width: max-content;
+            min-width: 100%;
             border-collapse: separate;
             border-spacing: 0;
             text-align: left;
@@ -360,7 +361,8 @@
             border: 1px solid transparent;
             white-space: pre-wrap;
             /* Support multi-line display */
-            word-break: break-all;
+            word-break: break-word;
+            overflow-wrap: anywhere;
             line-height: 1.4;
         }
 
@@ -634,30 +636,6 @@
 
         let editorConfig = [];
 
-        function determineConfig(headers) {
-            if (!headers || headers.length === 0) return [];
-
-            if (headers.includes('Заголовок 1') || headers.length > 10) {
-                return [
-                    { text: 1, used: 2, diff: 3, limit: 56, rule: 'total', section: 'section-main' },
-                    { text: 4, used: 5, diff: 6, limit: 30, rule: 'total', section: 'section-main' },
-                    { text: 7, used: 8, diff: 9, limit: 81, rule: 'total', section: 'section-main' },
-                    { text: 10, used: 11, diff: 12, limit: 66, rule: 'total', section: 'section-ql' },
-                    { text: 13, used: 14, diff: 15, limit: 60, rule: 'total', section: 'section-ql' },
-                    { text: 16, used: 17, diff: 18, limit: 66, rule: 'sumParts', section: 'section-ext' }
-                ];
-            }
-
-            if (headers[1] === 'Заголовок' && headers[4] === 'Описание') {
-                return [
-                    { text: 1, used: 2, diff: 3, limit: 56, rule: 'total', section: 'section-main' },
-                    { text: 4, used: 5, diff: 6, limit: 81, rule: 'total', section: 'section-main' }
-                ];
-            }
-
-            return [];
-        }
-
         function calculateCount(text, rule) {
             if (!text) return 0;
             const parts = text.split('||');
@@ -675,43 +653,114 @@
         const initialCSV = `Название группы,Заголовок 1, , ,Заголовок 2, , ,Описание, , ,Заголовки быстрых ссылок, , ,Описания быстрых ссылок, , ,Уточнения, , 
 70x90,Душевая кабина 70x90 + установка под ключ,35,-21,Монтаж 1 день,13,-17,Соберем и подключим. Гарантия 1 год. Оплата по факту. Пишите.,58,-23,Каталог||Прайс||Доставка||Оплата,30,-36,Модели||Цены||МСК||Нал,23,0,Гарантия||Оплата||Москва,21,-45`;
 
+        function processLoadedData(results) {
+            let data = results.data || results;
+
+            if (data.length <= 1) {
+                currentData = data;
+                editorConfig = [];
+                renderTable(currentData);
+                return;
+            }
+
+            // Remove columns that have absolutely no data (from row 1 onwards)
+            const headers = data[0];
+            const keepCols = [];
+            for (let col = 0; col < headers.length; col++) {
+                let hasData = false;
+                for (let r = 1; r < data.length; r++) {
+                    if (data[r][col] !== undefined && data[r][col] !== null && String(data[r][col]).trim() !== '') {
+                        hasData = true;
+                        break;
+                    }
+                }
+                // Keep the column if it has data or if we want to ensure some standard cols stay
+                // The requirements say "отображать только заполненные поля". So empty gets dropped.
+                if (hasData) {
+                    keepCols.push(col);
+                }
+            }
+
+            // Map data to kept columns
+            data = data.map(row => keepCols.map(col => row[col] || ''));
+
+            // Dynamically calculate counters for recognized text fields
+            const DIRECT_FIELDS = {
+                'Заголовок 1': { limit: 56, rule: 'total', section: 'section-main' },
+                'Заголовок 2': { limit: 30, rule: 'total', section: 'section-main' },
+                'Текст': { limit: 81, rule: 'total', section: 'section-main' },
+                'Заголовки быстрых ссылок': { limit: 66, rule: 'total', section: 'section-ql' },
+                'Описания быстрых ссылок': { limit: 60, rule: 'total', section: 'section-ql' },
+                'Уточнения': { limit: 66, rule: 'sumParts', section: 'section-ext' },
+                'Заголовок': { limit: 56, rule: 'total', section: 'section-main' },
+                'Описание': { limit: 81, rule: 'total', section: 'section-main' }
+            };
+
+            const processedData = data.map(row => []);
+            const nextEditorConfig = [];
+            const originalHeaders = data[0];
+            let newColIndex = 0;
+
+            for (let col = 0; col < originalHeaders.length; col++) {
+                const headerName = String(originalHeaders[col]).trim();
+                const conf = DIRECT_FIELDS[headerName];
+
+                // insert the text column
+                const currentTextCol = newColIndex++;
+                processedData[0].push(headerName);
+                for (let r = 1; r < data.length; r++) {
+                    processedData[r].push(String(data[r][col] || ''));
+                }
+
+                // if it's a known text field string, add counters
+                if (conf) {
+                    const currentUsedCol = newColIndex++;
+                    const currentDiffCol = newColIndex++;
+                    processedData[0].push('Использ.', 'Ост.');
+
+                    nextEditorConfig.push({
+                        text: currentTextCol,
+                        used: currentUsedCol,
+                        diff: currentDiffCol,
+                        limit: conf.limit,
+                        rule: conf.rule,
+                        section: conf.section
+                    });
+
+                    for (let r = 1; r < data.length; r++) {
+                        const textContent = processedData[r][currentTextCol];
+                        const count = calculateCount(textContent, conf.rule);
+                        const diff = conf.limit - count;
+                        processedData[r].push(String(count));
+                        processedData[r].push(String(diff < 0 ? diff : (count === 0 ? `-${conf.limit}` : diff)));
+                    }
+                }
+            }
+
+            // fallback for dummy data (no group name column on 1st position like directtext_template)
+            if (processedData[0].length > 0 && processedData[0][0].includes('Заголовок')) {
+                processedData[0].unshift('МК Оффер');
+                for (let r = 1; r < processedData.length; r++) {
+                    processedData[r].unshift(`МК-${r}`);
+                }
+                nextEditorConfig.forEach(c => {
+                    c.text++;
+                    c.used++;
+                    c.diff++;
+                });
+            }
+
+            currentData = processedData;
+            editorConfig = nextEditorConfig;
+            renderTable(currentData);
+        }
+
         function parseAndRender(csv) {
             Papa.parse(csv, {
                 header: false,
                 skipEmptyLines: true,
                 complete: (results) => {
-                    let data = results.data;
-
-                    if (data.length > 0 && data[0].length === 2 && data[0][0].includes('Заголовок')) {
-                        data.forEach((row, i) => {
-                            if (i === 0) {
-                                row.unshift('МК Оффер');
-                                row.splice(2, 0, 'Использ.', 'Ост.');
-                                row.push('Использ.', 'Ост.');
-                            } else {
-                                row.unshift(`МК-${i}`);
-                                row.splice(2, 0, '', '');
-                                row.push('', '');
-                            }
-                        });
-                    }
-
-                    currentData = data;
-                    editorConfig = determineConfig(currentData[0]);
-
-                    if (editorConfig.length > 0) {
-                        for (let i = 1; i < currentData.length; i++) {
-                            editorConfig.forEach(conf => {
-                                const text = currentData[i][conf.text] || '';
-                                const count = calculateCount(text, conf.rule);
-                                const diff = conf.limit - count;
-                                currentData[i][conf.used] = String(count);
-                                currentData[i][conf.diff] = String(diff < 0 ? diff : (count === 0 ? `-${conf.limit}` : diff));
-                            });
-                        }
-                    }
-
-                    renderTable(currentData);
+                    processLoadedData(results.data);
                 }
             });
         }
@@ -735,13 +784,27 @@
                 const conf = activeConfig.find(c => c.text === i || c.used === i || c.diff === i);
                 if (conf) className += ' ' + conf.section;
 
+                let styleStr = '';
+                const MULTI_PART_FIELDS = ['Заголовки быстрых ссылок', 'Описания быстрых ссылок', 'Уточнения'];
+                const isMultiPart = MULTI_PART_FIELDS.includes(h);
+
+                if (h === 'Текст' || h === 'Описание') {
+                    styleStr = 'min-width: 400px; width: 400px;';
+                } else if (isMultiPart) {
+                    styleStr = 'min-width: 200px; width: 200px;';
+                } else if (textCols.includes(i)) {
+                    styleStr = 'min-width: 250px; width: 250px;';
+                } else if (!usedCols.includes(i) && !diffCols.includes(i) && i < headers.length - 1) {
+                    styleStr = 'min-width: 150px;';
+                }
+
                 if (i < headers.length - 1) {
                     if (sortConfig.column === i) {
                         className += sortConfig.direction === 'asc' ? ' sort-asc' : ' sort-desc';
                     }
-                    return `<th class="${className.trim()}" onclick="handleSort(${i})">${h || ''}</th>`;
+                    return `<th class="${className.trim()}" style="${styleStr}" onclick="handleSort(${i})">${h || ''}</th>`;
                 }
-                return `<th class="${className.trim()}">${h || ''}</th>`;
+                return `<th class="${className.trim()}" style="${styleStr}">${h || ''}</th>`;
             }).join('')}</tr>`;
 
             // Body
@@ -753,12 +816,12 @@
                 ? rowsWithIndex.filter(item => item.data.some(cell => String(cell).toLowerCase().includes(term)))
                 : rowsWithIndex;
 
-            renderRows(filteredRows, activeConfig);
+            renderRows(filteredRows, activeConfig, data[0]);
 
             fileInfo.textContent = `Загружено строк: ${rows.length}${term ? ` (отфильтровано: ${filteredRows.length})` : ''}`;
         }
 
-        function renderRows(items, activeConfig) {
+        function renderRows(items, activeConfig, headers) {
             tableBody.innerHTML = '';
 
             const usedCols = activeConfig.map(c => c.used);
@@ -772,8 +835,25 @@
 
                 row.forEach((cell, cellIndex) => {
                     const td = document.createElement('td');
-                    const MULTI_PART_COLS = [10, 13, 16];
-                    const isMultiPart = MULTI_PART_COLS.includes(cellIndex);
+                    const headerName = headers[cellIndex] || '';
+                    const MULTI_PART_FIELDS = ['Заголовки быстрых ссылок', 'Описания быстрых ссылок', 'Уточнения'];
+                    const isMultiPart = MULTI_PART_FIELDS.includes(headerName);
+
+                    // Set min-width based on column type
+                    if (headerName === 'Текст' || headerName === 'Описание') {
+                        td.style.minWidth = '400px';
+                        td.style.width = '400px';
+                    } else if (isMultiPart) {
+                        td.style.minWidth = '200px';
+                        td.style.width = '200px';
+                    } else if (textCols.includes(cellIndex)) {
+                        td.style.minWidth = '250px';
+                        td.style.width = '250px';
+                    } else if (usedCols.includes(cellIndex) || diffCols.includes(cellIndex)) {
+                        td.style.minWidth = '50px';
+                    } else {
+                        td.style.minWidth = '150px';
+                    }
 
                     if (isMultiPart) {
                         td.classList.add('multi-part-cell');
@@ -837,6 +917,8 @@
 
                             if (textCols.includes(cellIndex)) {
                                 td.style.minWidth = '250px';
+                            } else {
+                                td.style.minWidth = '150px';
                             }
                         }
 
@@ -1037,14 +1119,63 @@
         });
 
         // File Operations
+        async function handleFileLoading(file) {
+            if (file.name.endsWith('.xlsx')) {
+                const arrayBuffer = await file.arrayBuffer();
+                const workbook = new ExcelJS.Workbook();
+                await workbook.xlsx.load(arrayBuffer);
+                const worksheet = workbook.worksheets[0];
+
+                let data = [];
+                worksheet.eachRow((row, rowNumber) => {
+                    let rowData = [];
+                    row.eachCell({ includeEmpty: true }, (cell, colNumber) => {
+                        rowData[colNumber - 1] = cell.text || '';
+                    });
+                    if (data.length > 0) {
+                        while (rowData.length < data[0].length) rowData.push('');
+                    }
+                    data.push(rowData);
+                });
+
+                // Trim empty trailing columns that ExcelJS might capture
+                if (data.length > 0) {
+                    while (data[0].length > 0 && data[0][data[0].length - 1] === '') {
+                        data.forEach(r => r.pop());
+                    }
+                }
+
+                processLoadedData(data);
+            } else {
+                const content = await file.text();
+                Papa.parse(content, {
+                    header: false,
+                    skipEmptyLines: true,
+                    complete: (results) => {
+                        processLoadedData(results.data);
+                    }
+                });
+            }
+        }
+
         async function openFile() {
             try {
                 [fileHandle] = await window.showOpenFilePicker({
-                    types: [{ description: 'CSV Files', accept: { 'text/csv': ['.csv'] } }]
+                    types: [
+                        {
+                            description: 'Таблицы (CSV, Excel)',
+                            accept: {
+                                'text/csv': ['.csv'],
+                                'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': ['.xlsx'],
+                                'application/vnd.ms-excel': ['.xls', '.xlsx']
+                            }
+                        }
+                    ],
+                    excludeAcceptAllOption: false,
+                    multiple: false
                 });
                 const file = await fileHandle.getFile();
-                const content = await file.text();
-                parseAndRender(content);
+                await handleFileLoading(file);
 
                 statusDot.classList.add('active');
                 fileInfo.textContent = `Синхронизация активна: ${file.name}`;
@@ -1064,21 +1195,31 @@
             }
 
             try {
-                // Request write permission if not already granted
+                const file = await fileHandle.getFile();
                 const status = await fileHandle.requestPermission({ mode: 'readwrite' });
                 if (status !== 'granted') return;
 
                 const writable = await fileHandle.createWritable();
-                const csv = Papa.unparse(currentData);
-                await writable.write(csv);
+
+                if (file.name.endsWith('.xlsx')) {
+                    const workbook = new ExcelJS.Workbook();
+                    const worksheet = workbook.addWorksheet('Data');
+                    currentData.forEach(row => worksheet.addRow(row));
+                    const buffer = await workbook.xlsx.writeBuffer();
+                    await writable.write(buffer);
+                } else {
+                    const csv = Papa.unparse(currentData);
+                    await writable.write(csv);
+                }
+
                 await writable.close();
 
-                const file = await fileHandle.getFile();
-                lastModified = file.lastModified;
+                const updatedFile = await fileHandle.getFile();
+                lastModified = updatedFile.lastModified;
 
-                fileInfo.textContent = `Изменения сохранены в ${file.name}`;
+                fileInfo.textContent = `Изменения сохранены в ${updatedFile.name}`;
                 setTimeout(() => {
-                    fileInfo.textContent = `Синхронизация активна: ${file.name}`;
+                    fileInfo.textContent = `Синхронизация активна: ${updatedFile.name}`;
                 }, 3000);
 
             } catch (err) {
@@ -1093,8 +1234,7 @@
             try {
                 const file = await fileHandle.getFile();
                 if (file.lastModified > lastModified) {
-                    const content = await file.text();
-                    parseAndRender(content);
+                    await handleFileLoading(file);
                     lastModified = file.lastModified;
                 }
             } catch (err) {
@@ -1116,25 +1256,43 @@
 
             // Define mapping and colors
             let exportConfig = [];
-            if (currentData[0].includes('Заголовок 1') || currentData[0].length > 10) {
-                exportConfig = [
-                    { index: 0, header: 'Группа объявлений', color: 'F3F4F6' }, // Grey
-                    { index: 1, header: 'Заголовок 1', color: 'EBF5FF' },      // Blue
-                    { index: 4, header: 'Заголовок 2', color: 'EBF5FF' },      // Blue
-                    { index: 7, header: 'Описание', color: 'F3F4F6' },         // Grey
-                    { index: 10, header: 'Заголовки быстрых ссылок', color: 'F0FDF4' }, // Green
-                    { index: 13, header: 'Описания быстрых ссылок', color: 'F0FDF4' },  // Green
-                    { index: 16, header: 'Уточнения', color: 'FFFBEB' }       // Light Orange/Peach
+            const headers = currentData[0];
+            const getCol = name => headers.indexOf(name);
+
+            if (headers.includes('Заголовок 1') || headers.includes('Текст')) {
+                const fields = [
+                    { name: 'Название группы', display: 'Группа объявлений', color: 'F3F4F6' },
+                    { name: 'МК Оффер', display: 'Номер', color: 'F3F4F6' },
+                    { name: 'Заголовок 1', display: 'Заголовок 1', color: 'EBF5FF' },
+                    { name: 'Заголовок 2', display: 'Заголовок 2', color: 'EBF5FF' },
+                    { name: 'Текст', display: 'Описание', color: 'F3F4F6' },
+                    { name: 'Заголовки быстрых ссылок', display: 'Заголовки быстрых ссылок', color: 'F0FDF4' },
+                    { name: 'Описания быстрых ссылок', display: 'Описания быстрых ссылок', color: 'F0FDF4' },
+                    { name: 'Уточнения', display: 'Уточнения', color: 'FFFBEB' }
                 ];
-            } else if (currentData[0][1] === 'Заголовок' && currentData[0][4] === 'Описание') {
+
+                fields.forEach(f => {
+                    const idx = getCol(f.name);
+                    if (idx !== -1) {
+                        exportConfig.push({ index: idx, header: f.display, color: f.color });
+                    }
+                });
+
+                // Fallback for group name if it's the first column but had no clear header
+                if (getCol('Название группы') === -1 && getCol('МК Оффер') === -1) {
+                    exportConfig.unshift({ index: 0, header: 'Группа объявлений', color: 'F3F4F6' });
+                }
+            } else if (headers.includes('Заголовок') && headers.includes('Описание')) {
                 exportConfig = [
                     { index: 0, header: 'Номер', color: 'F3F4F6' },
-                    { index: 1, header: 'Заголовок', color: 'EBF5FF' },
-                    { index: 4, header: 'Описание', color: 'F3F4F6' }
+                    { index: getCol('Заголовок'), header: 'Заголовок', color: 'EBF5FF' },
+                    { index: getCol('Описание'), header: 'Описание', color: 'F3F4F6' }
                 ];
             } else {
-                currentData[0].forEach((h, i) => {
-                    exportConfig.push({ index: i, header: h || `Столбец ${i + 1}`, color: 'FFFFFF' });
+                headers.forEach((h, i) => {
+                    if (h !== 'Использ.' && h !== 'Ост.') {
+                        exportConfig.push({ index: i, header: h || `Столбец ${i + 1}`, color: 'FFFFFF' });
+                    }
                 });
             }
 
@@ -1249,17 +1407,20 @@
             worksheet.addRow(commanderHeaders);
 
             let seenGroups = new Set();
-
-            const isMK = currentData[0][1] === 'Заголовок' && currentData[0][4] === 'Описание';
+            const headers = currentData[0];
+            const getCol = name => headers.indexOf(name);
+            const isMK = headers.includes('Заголовок') && headers.includes('Описание') && !headers.includes('Заголовок 1');
 
             currentData.slice(1).forEach(rowData => {
-                const groupName = rowData[0] || '';
-                const title1 = isMK ? (rowData[1] || '') : (rowData[1] || '');
-                const title2 = isMK ? '' : (rowData[4] || '');
-                const text = isMK ? (rowData[4] || '') : (rowData[7] || '');
-                const qlTitles = isMK ? '' : (rowData[10] || '');
-                const qlDesc = isMK ? '' : (rowData[13] || '');
-                const callouts = isMK ? '' : (rowData[16] || '');
+                const groupIdx = getCol('Название группы') !== -1 ? getCol('Название группы') : 0;
+                const groupName = rowData[groupIdx] || '';
+
+                const title1 = isMK ? (rowData[getCol('Заголовок')] || '') : (rowData[getCol('Заголовок 1')] || '');
+                const title2 = isMK ? '' : (rowData[getCol('Заголовок 2')] || '');
+                const text = isMK ? (rowData[getCol('Описание')] || '') : (rowData[getCol('Текст')] || '');
+                const qlTitles = isMK ? '' : (rowData[getCol('Заголовки быстрых ссылок')] || '');
+                const qlDesc = isMK ? '' : (rowData[getCol('Описания быстрых ссылок')] || '');
+                const callouts = isMK ? '' : (rowData[getCol('Уточнения')] || '');
 
                 let isAdditional = '+';
                 let phrase = '';
@@ -1314,8 +1475,7 @@
             document.getElementById('dropZone').classList.remove('active');
             const file = e.dataTransfer.files[0];
             if (file) {
-                const content = await file.text();
-                parseAndRender(content);
+                await handleFileLoading(file);
                 fileInfo.textContent = `Файл: ${file.name}`;
             }
         });
