@@ -1,0 +1,8 @@
+interface:
+  display_name: "Yandex Direct: XLSX кампании"
+  short_description: "Генерация XLSX для импорта в Директ"
+  default_prompt: "Используй $yandex-direct-xlsx-campaigns, чтобы собрать XLSX для импорта в Яндекс Директ из моих данных, сохранив все колонки шаблона и оставив незаполненные поля пустыми."
+
+policy:
+  allow_implicit_invocation: true
+

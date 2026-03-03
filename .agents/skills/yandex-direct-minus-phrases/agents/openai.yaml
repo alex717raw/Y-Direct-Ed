@@ -1,0 +1,7 @@
+interface:
+  display_name: "Yandex Direct: Минус-фразы"
+  short_description: "Минус-фразы из объявлений, сайта и веба"
+  default_prompt: "Используй $yandex-direct-minus-phrases, чтобы собрать минус-фразы (кампания + при необходимости группы) из файла объявлений, сайта и интернет-списков, с отдельным списком прогрева и строкой через запятую для вставки."
+
+policy:
+  allow_implicit_invocation: true

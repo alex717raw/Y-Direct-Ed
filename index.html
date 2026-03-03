@@ -632,14 +632,31 @@
         const statusDot = document.getElementById('statusDot');
         const searchInput = document.getElementById('searchInput');
 
-        const editorConfig = [
-            { text: 1, used: 2, diff: 3, limit: 56, rule: 'total', section: 'section-main' },
-            { text: 4, used: 5, diff: 6, limit: 30, rule: 'total', section: 'section-main' },
-            { text: 7, used: 8, diff: 9, limit: 81, rule: 'total', section: 'section-main' },
-            { text: 10, used: 11, diff: 12, limit: 66, rule: 'total', section: 'section-ql' },
-            { text: 13, used: 14, diff: 15, limit: 60, rule: 'total', section: 'section-ql' },
-            { text: 16, used: 17, diff: 18, limit: 66, rule: 'sumParts', section: 'section-ext' }
-        ];
+        let editorConfig = [];
+
+        function determineConfig(headers) {
+            if (!headers || headers.length === 0) return [];
+
+            if (headers.includes('Заголовок 1') || headers.length > 10) {
+                return [
+                    { text: 1, used: 2, diff: 3, limit: 56, rule: 'total', section: 'section-main' },
+                    { text: 4, used: 5, diff: 6, limit: 30, rule: 'total', section: 'section-main' },
+                    { text: 7, used: 8, diff: 9, limit: 81, rule: 'total', section: 'section-main' },
+                    { text: 10, used: 11, diff: 12, limit: 66, rule: 'total', section: 'section-ql' },
+                    { text: 13, used: 14, diff: 15, limit: 60, rule: 'total', section: 'section-ql' },
+                    { text: 16, used: 17, diff: 18, limit: 66, rule: 'sumParts', section: 'section-ext' }
+                ];
+            }
+
+            if (headers[1] === 'Заголовок' && headers[4] === 'Описание') {
+                return [
+                    { text: 1, used: 2, diff: 3, limit: 56, rule: 'total', section: 'section-main' },
+                    { text: 4, used: 5, diff: 6, limit: 81, rule: 'total', section: 'section-main' }
+                ];
+            }
+
+            return [];
+        }
 
         function calculateCount(text, rule) {
             if (!text) return 0;
@@ -663,7 +680,37 @@
                 header: false,
                 skipEmptyLines: true,
                 complete: (results) => {
-                    currentData = results.data;
+                    let data = results.data;
+
+                    if (data.length > 0 && data[0].length === 2 && data[0][0].includes('Заголовок')) {
+                        data.forEach((row, i) => {
+                            if (i === 0) {
+                                row.unshift('МК Оффер');
+                                row.splice(2, 0, 'Использ.', 'Ост.');
+                                row.push('Использ.', 'Ост.');
+                            } else {
+                                row.unshift(`МК-${i}`);
+                                row.splice(2, 0, '', '');
+                                row.push('', '');
+                            }
+                        });
+                    }
+
+                    currentData = data;
+                    editorConfig = determineConfig(currentData[0]);
+
+                    if (editorConfig.length > 0) {
+                        for (let i = 1; i < currentData.length; i++) {
+                            editorConfig.forEach(conf => {
+                                const text = currentData[i][conf.text] || '';
+                                const count = calculateCount(text, conf.rule);
+                                const diff = conf.limit - count;
+                                currentData[i][conf.used] = String(count);
+                                currentData[i][conf.diff] = String(diff < 0 ? diff : (count === 0 ? `-${conf.limit}` : diff));
+                            });
+                        }
+                    }
+
                     renderTable(currentData);
                 }
             });
@@ -1068,15 +1115,28 @@
             const worksheet = workbook.addWorksheet('Рекламные тексты');
 
             // Define mapping and colors
-            const exportConfig = [
-                { index: 0, header: 'Группа объявлений', color: 'F3F4F6' }, // Grey
-                { index: 1, header: 'Заголовок 1', color: 'EBF5FF' },      // Blue
-                { index: 4, header: 'Заголовок 2', color: 'EBF5FF' },      // Blue
-                { index: 7, header: 'Описание', color: 'F3F4F6' },         // Grey
-                { index: 10, header: 'Заголовки быстрых ссылок', color: 'F0FDF4' }, // Green
-                { index: 13, header: 'Описания быстрых ссылок', color: 'F0FDF4' },  // Green
-                { index: 16, header: 'Уточнения', color: 'FFFBEB' }       // Light Orange/Peach
-            ];
+            let exportConfig = [];
+            if (currentData[0].includes('Заголовок 1') || currentData[0].length > 10) {
+                exportConfig = [
+                    { index: 0, header: 'Группа объявлений', color: 'F3F4F6' }, // Grey
+                    { index: 1, header: 'Заголовок 1', color: 'EBF5FF' },      // Blue
+                    { index: 4, header: 'Заголовок 2', color: 'EBF5FF' },      // Blue
+                    { index: 7, header: 'Описание', color: 'F3F4F6' },         // Grey
+                    { index: 10, header: 'Заголовки быстрых ссылок', color: 'F0FDF4' }, // Green
+                    { index: 13, header: 'Описания быстрых ссылок', color: 'F0FDF4' },  // Green
+                    { index: 16, header: 'Уточнения', color: 'FFFBEB' }       // Light Orange/Peach
+                ];
+            } else if (currentData[0][1] === 'Заголовок' && currentData[0][4] === 'Описание') {
+                exportConfig = [
+                    { index: 0, header: 'Номер', color: 'F3F4F6' },
+                    { index: 1, header: 'Заголовок', color: 'EBF5FF' },
+                    { index: 4, header: 'Описание', color: 'F3F4F6' }
+                ];
+            } else {
+                currentData[0].forEach((h, i) => {
+                    exportConfig.push({ index: i, header: h || `Столбец ${i + 1}`, color: 'FFFFFF' });
+                });
+            }
 
             // Calculate optimal column widths based on content
             const colWidths = exportConfig.map(config => {
@@ -1190,14 +1250,16 @@
 
             let seenGroups = new Set();
 
+            const isMK = currentData[0][1] === 'Заголовок' && currentData[0][4] === 'Описание';
+
             currentData.slice(1).forEach(rowData => {
                 const groupName = rowData[0] || '';
-                const title1 = rowData[1] || '';
-                const title2 = rowData[4] || '';
-                const text = rowData[7] || '';
-                const qlTitles = rowData[10] || '';
-                const qlDesc = rowData[13] || '';
-                const callouts = rowData[16] || '';
+                const title1 = isMK ? (rowData[1] || '') : (rowData[1] || '');
+                const title2 = isMK ? '' : (rowData[4] || '');
+                const text = isMK ? (rowData[4] || '') : (rowData[7] || '');
+                const qlTitles = isMK ? '' : (rowData[10] || '');
+                const qlDesc = isMK ? '' : (rowData[13] || '');
+                const callouts = isMK ? '' : (rowData[16] || '');
 
                 let isAdditional = '+';
                 let phrase = '';
